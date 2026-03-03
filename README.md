@@ -1,6 +1,6 @@
-# Spotify AI Playlist Generator — Flask
+# Spotify Playlist Generator — Flask
 
-Minimal Flask service for generating Spotify playlists with an LLM.
+Minimal Flask service for creating Spotify playlists — either via an LLM prompt or from a manual song list.
 Handles the full OAuth 2.0 flow, token refresh, track search, playlist creation, and adding tracks.
 
 ---
@@ -70,9 +70,10 @@ Then open `http://127.0.0.1:5050/api/spotify/connect` to authenticate.
 | GET | `/api/spotify/connect` | Start OAuth flow |
 | GET | `/api/spotify/callback` | OAuth callback (set this as Redirect URI) |
 | POST | `/api/spotify/disconnect` | Remove local token |
-| POST | `/api/spotify/generate-playlist` | Generate + create playlist |
+| POST | `/api/spotify/generate-playlist` | Generate playlist via AI prompt |
+| POST | `/api/spotify/manual-playlist` | Create playlist from a song list |
 
-### Generate playlist — request body
+### Generate playlist (AI) — request body
 
 ```json
 {
@@ -82,7 +83,23 @@ Then open `http://127.0.0.1:5050/api/spotify/connect` to authenticate.
 }
 ```
 
-### Generate playlist — response
+### Manual playlist — request body
+
+Supply a list of songs. The `artist` field is optional.
+
+```json
+{
+  "name": "My Mix",
+  "public": false,
+  "songs": [
+    {"name": "Bohemian Rhapsody", "artist": "Queen"},
+    {"name": "Blinding Lights", "artist": "The Weeknd"},
+    {"name": "Stayin' Alive"}
+  ]
+}
+```
+
+### Response (both endpoints)
 
 ```json
 {

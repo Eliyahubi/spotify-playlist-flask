@@ -1,12 +1,13 @@
 """
-Minimal Flask app — Spotify AI Playlist Generator
---------------------------------------------------
+Minimal Flask app — Spotify Playlist Generator
+-----------------------------------------------
 Endpoints:
-  GET  /api/spotify/status           → is configured / authenticated?
-  GET  /api/spotify/connect          → redirect to Spotify OAuth
-  GET  /api/spotify/callback         → OAuth callback (set as Redirect URI in dashboard)
-  POST /api/spotify/disconnect       → delete local token
+  GET  /api/spotify/status            → is configured / authenticated?
+  GET  /api/spotify/connect           → redirect to Spotify OAuth
+  GET  /api/spotify/callback          → OAuth callback (set as Redirect URI in dashboard)
+  POST /api/spotify/disconnect        → delete local token
   POST /api/spotify/generate-playlist → generate + create playlist via AI
+  POST /api/spotify/manual-playlist   → create playlist from a supplied song list
 """
 
 import os
@@ -115,6 +116,71 @@ def _generate_songs_with_ai(prompt):
         "Implement _generate_songs_with_ai() with your LLM of choice.\n"
         "Expected return: [{'name': 'Song Title', 'artist': 'Artist Name'}, ...]"
     )
+
+
+# ── Manual playlist ───────────────────────────────────────────────────────────
+
+@app.route('/api/spotify/manual-playlist', methods=['POST'])
+def manual_playlist():
+    """
+    Create a playlist from a user-supplied song list.
+
+    Request body:
+        {
+          "name": "My Playlist",
+          "public": false,
+          "songs": [
+            {"name": "Bohemian Rhapsody", "artist": "Queen"},
+            {"name": "Blinding Lights", "artist": "The Weeknd"},
+            {"name": "Stayin' Alive"}
+          ]
+        }
+
+    The "artist" field is optional — omit it to search by song name only.
+    """
+    try:
+        if not spotify_service.is_authenticated():
+            return jsonify({'error': 'Not authenticated'}), 401
+
+        data          = request.get_json() or {}
+        songs         = data.get('songs', [])
+        playlist_name = data.get('name', '').strip()
+        public        = data.get('public', False)
+
+        if not songs:
+            return jsonify({'error': 'songs is required'}), 400
+        if not playlist_name:
+            return jsonify({'error': 'name is required'}), 400
+
+        found, not_found = [], []
+        for song in songs:
+            result = spotify_service.search_track(
+                song.get('name', ''), song.get('artist', '')
+            )
+            if result:
+                found.append(result)
+            else:
+                label = song['name']
+                if song.get('artist'):
+                    label += f" – {song['artist']}"
+                not_found.append(label)
+
+        if not found:
+            return jsonify({'error': 'No songs found on Spotify'}), 404
+
+        playlist = spotify_service.create_playlist(playlist_name, 'Manual playlist', public)
+        spotify_service.add_tracks(playlist['id'], [t['uri'] for t in found])
+
+        return jsonify({
+            'playlist_url': playlist['url'],
+            'playlist_id':  playlist['id'],
+            'tracks_added': found,
+            'not_found':    not_found,
+        })
+
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
 
 
 if __name__ == '__main__':
